@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace OnPaper.Hubs;
 
-[Authorize]
+//[Authorize]
 public class GameHub : Hub
 {
     private static readonly ConcurrentQueue<WaitingPlayer> queue = new();
@@ -21,9 +21,13 @@ public class GameHub : Hub
     
     private static readonly Lock _lock = new();
 
-    public async Task SaveMaze(string roomId, byte[] maze)
+    public async Task SaveMaze(string roomId, int[] maze)
     {
         Console.WriteLine(roomId);
+        for (int i = 0; i < maze.Length; i++)
+        {
+            Console.WriteLine(maze[i]);
+        }
     }
     
     public async Task FindGame()
@@ -31,6 +35,11 @@ public class GameHub : Hub
         var userId = Context.UserIdentifier;
         
         var connectionId = Context.ConnectionId;
+
+        if (userId == null || connectionId == null)
+        {
+            return;
+        }
 
         WaitingPlayer? opponent = null;
         Console.WriteLine(userId + " " + connectionId);
