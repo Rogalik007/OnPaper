@@ -21,13 +21,15 @@ public class GameHub : Hub
     
     private static readonly Lock _lock = new();
 
-    public async Task SaveMaze(string roomId, int[] maze)
+    public async Task SaveMaze(string roomId, MazeDto maze)
     {
         Console.WriteLine(roomId);
-        for (int i = 0; i < maze.Length; i++)
+        for (int i = 0; i < maze.Maze.Length; i++)
         {
-            Console.WriteLine(maze[i]);
+            Console.WriteLine(maze.Maze[i]);
         }
+
+        //сохранение в бд
     }
     
     public async Task FindGame()
@@ -82,4 +84,11 @@ public class GameHub : Hub
     }
     
     private record WaitingPlayer(string UserId, string ConnectionId);
+
+    public class MazeDto
+    {
+        public int[] Maze { get; set; }
+        public int Size { get; set; }
+        public int Treasure { get; set; }
+    }
 }
