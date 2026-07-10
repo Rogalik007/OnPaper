@@ -9,26 +9,27 @@ public class GameHub : Hub
 {
     private static readonly ConcurrentQueue<WaitingPlayer> queue = new();
     
-    public async Task SendMessage(string user, string message)
-    {
-        await Clients.All.SendAsync("ReceiveMessage", user, message);
-    }
-    
     public string GetConnectionId()
     {
         return Context.ConnectionId;
     }
     
+    public async Task<int[]> GetMazeSize()
+    {
+        Console.WriteLine(123);
+        return [5, 6];
+    }
+
     private static readonly Lock _lock = new();
 
-    public async Task SaveMaze(string roomId, MazeDto maze)
+    public async Task<bool> SaveMaze(MazeDto maze)
     {
-        Console.WriteLine(roomId);
-        for (int i = 0; i < maze.Maze.Length; i++)
+        //Console.WriteLine(roomId);
+        for (int i = 0; i < maze.HorizontalWalls.Length; i++)
         {
-            Console.WriteLine(maze.Maze[i]);
+            Console.WriteLine(maze.HorizontalWalls[i]);
         }
-
+        return true;
         //сохранение в бд
     }
     
@@ -87,8 +88,10 @@ public class GameHub : Hub
 
     public class MazeDto
     {
-        public int[] Maze { get; set; }
-        public int Size { get; set; }
+        public int SizeX { get; set; }
+        public int SizeY { get; set; }
+        public int[] HorizontalWalls { get; set; }
+        public int[] VerticalWalls { get; set; }
         public int Treasure { get; set; }
     }
 }
