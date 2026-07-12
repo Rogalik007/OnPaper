@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace OnPaper.Hubs;
 
-//[Authorize]
+[Authorize]
 public class GameHub : Hub
 {
     private static readonly ConcurrentQueue<WaitingPlayer> queue = new();
@@ -16,7 +16,6 @@ public class GameHub : Hub
     
     public async Task<int[]> GetMazeSize()
     {
-        Console.WriteLine(123);
         return [5, 6];
     }
 
@@ -67,14 +66,14 @@ public class GameHub : Hub
 
         if (opponent != null)
         {
-            var matchId = Guid.NewGuid().ToString();
+            var gameId = Guid.NewGuid().ToString();
 
             // Уведомляем обоих игроков, что матч найден
             await Clients.Client(opponent.ConnectionId)
-                .SendAsync("GameFound", matchId, userId);
+                .SendAsync("GameFound", gameId, userId);
 
             await Clients.Caller
-                .SendAsync("GameFound", matchId, opponent.UserId);
+                .SendAsync("GameFound", gameId, opponent.UserId);
         }
     }
 
