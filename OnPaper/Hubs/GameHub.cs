@@ -1,14 +1,16 @@
-﻿using System.Collections.Concurrent;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.Collections.Concurrent;
 
 namespace OnPaper.Hubs;
 
-[Authorize]
+//[Authorize]
 public class GameHub : Hub
 {
-    private static readonly ConcurrentQueue<WaitingPlayer> queue = new();
-    
+    private static readonly ConcurrentDictionary<string, WaitingPlayer> dictionary = new();
+    private static readonly Random random = new();
+
     public string GetConnectionId()
     {
         return Context.ConnectionId;
@@ -23,13 +25,11 @@ public class GameHub : Hub
 
     public async Task<bool> SaveMaze(MazeDto maze)
     {
-        //Console.WriteLine(roomId);
         for (int i = 0; i < maze.HorizontalWalls.Length; i++)
         {
             Console.WriteLine(maze.HorizontalWalls[i]);
         }
         return true;
-        //сохранение в бд
     }
     
     public async Task FindGame()
@@ -44,27 +44,28 @@ public class GameHub : Hub
         }
 
         WaitingPlayer? opponent = null;
-        Console.WriteLine(userId + " " + connectionId);
+        string? opponentId = null;
+
         lock (_lock)
         {
-            if (queue.FirstOrDefault(user => user.UserId == userId) != null)
+            if (dictionary.ContainsKey(userId))
             {
-                Console.WriteLine("bad");
-                return;
+                throw new HubException("You are already in queue");
             }
-                
-            if (queue.TryDequeue(out var existing))
+
+            if (!dictionary.IsEmpty)
             {
-                opponent = existing;
+                var keys = dictionary.Keys.ToList();
+                opponentId = keys[random.Next(keys.Count)];
+                opponent = dictionary[opponentId];
             }
             else
             {
-                queue.Enqueue(new WaitingPlayer(userId, connectionId));
-                Console.WriteLine("good" + " " + queue.Count);
+                dictionary.TryAdd(userId, new WaitingPlayer(userId, 80));
             }
         }
 
-        if (opponent != null)
+        if (opponent != null && opponentId != null)
         {
             var gameId = Guid.NewGuid().ToString();
 
@@ -73,17 +74,24 @@ public class GameHub : Hub
                 .SendAsync("GameFound", gameId, userId);
 
             await Clients.Caller
-                .SendAsync("GameFound", gameId, opponent.UserId);
+                .SendAsync("GameFound", gameId, opponentId);
+
+            dictionary.TryRemove(userId, out _);
+            dictionary.TryRemove(opponentId, out _);
         }
     }
 
     public Task CancelSearch()
     {
-        // тут нужна логика удаления себя из очереди
+        var userId = Context.UserIdentifier;
+        if (userId != null)
+        {
+            dictionary.TryRemove(userId, out _);
+        }
         return Task.CompletedTask;
     }
     
-    private record WaitingPlayer(string UserId, string ConnectionId);
+    private record WaitingPlayer(string ConnectionId, int rating);
 
     public class MazeDto
     {
