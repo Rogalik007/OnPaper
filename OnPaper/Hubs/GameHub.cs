@@ -8,7 +8,8 @@ namespace OnPaper.Hubs;
 //[Authorize]
 public class GameHub : Hub
 {
-    private static readonly ConcurrentDictionary<string, WaitingPlayer> dictionary = new();
+    private static readonly ConcurrentDictionary<string, WaitingPlayer> waitingPlayers = new();
+    private static readonly ConcurrentDictionary<string, MazeDto> games = new();
     private static readonly Random random = new();
 
     public string GetConnectionId()
@@ -48,20 +49,20 @@ public class GameHub : Hub
 
         lock (_lock)
         {
-            if (dictionary.ContainsKey(userId))
+            if (waitingPlayers.ContainsKey(userId))
             {
                 throw new HubException("You are already in queue");
             }
 
-            if (!dictionary.IsEmpty)
+            if (!waitingPlayers.IsEmpty)
             {
-                var keys = dictionary.Keys.ToList();
+                var keys = waitingPlayers.Keys.ToList();
                 opponentId = keys[random.Next(keys.Count)];
-                opponent = dictionary[opponentId];
+                opponent = waitingPlayers[opponentId];
             }
             else
             {
-                dictionary.TryAdd(userId, new WaitingPlayer(userId, 80));
+                waitingPlayers.TryAdd(userId, new WaitingPlayer(userId, 80));
             }
         }
 
@@ -76,8 +77,8 @@ public class GameHub : Hub
             await Clients.Caller
                 .SendAsync("GameFound", gameId, opponentId);
 
-            dictionary.TryRemove(userId, out _);
-            dictionary.TryRemove(opponentId, out _);
+            waitingPlayers.TryRemove(userId, out _);
+            waitingPlayers.TryRemove(opponentId, out _);
         }
     }
 
@@ -86,15 +87,24 @@ public class GameHub : Hub
         var userId = Context.UserIdentifier;
         if (userId != null)
         {
-            dictionary.TryRemove(userId, out _);
+            waitingPlayers.TryRemove(userId, out _);
         }
         return Task.CompletedTask;
     }
     
     private record WaitingPlayer(string ConnectionId, int rating);
 
+    public class UserDto
+    {
+        public int Id { get; set; }
+        public int ConnectionId { get; set; }
+        public int UserId { get; set; }
+        public int GameId { get; set; }
+    }
+
     public class MazeDto
     {
+        public int Id { get; set; }
         public int SizeX { get; set; }
         public int SizeY { get; set; }
         public int[] HorizontalWalls { get; set; }
