@@ -7,6 +7,7 @@ using OnPaper.Hubs;
 using OnPaper.Infrastructure;
 using OnPaper.Services.AuthService;
 using OnPaper.Services.UsersService;
+using StackExchange.Redis;
 
 DotNetEnv.Env.Load();
 
@@ -32,6 +33,15 @@ var connectionStringBuilder = new NpgsqlConnectionStringBuilder
 
 builder.Services.AddDbContext<OnPaperDbContext>(options =>
     options.UseNpgsql(connectionStringBuilder.ConnectionString));
+
+var conf = new ConfigurationOptions {
+    EndPoints = { Environment.GetEnvironmentVariable("REDIS_HOST") + ":" + Environment.GetEnvironmentVariable("REDIS_PORT") },
+    User = "yourUsername",
+    Password = "yourPassword"
+};
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(conf));
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();

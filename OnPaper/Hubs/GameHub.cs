@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 namespace OnPaper.Hubs;
 
-//[Authorize]
+[Authorize]
 public class GameHub : Hub
 {
     private static readonly ConcurrentDictionary<string, WaitingPlayer> waitingPlayers = new();
