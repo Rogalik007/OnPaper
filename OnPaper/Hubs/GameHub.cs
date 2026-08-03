@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Collections.Concurrent;
+using OnPaper.Services.LobbyService;
 
 namespace OnPaper.Hubs;
 
