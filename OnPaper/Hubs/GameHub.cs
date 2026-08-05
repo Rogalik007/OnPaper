@@ -7,11 +7,9 @@ using OnPaper.Services.LobbyService;
 namespace OnPaper.Hubs;
 
 [Authorize]
-public class GameHub : Hub
+public class GameHub(ILobbyService lobbyService) : Hub
 {
-    private static readonly ConcurrentDictionary<string, WaitingPlayer> waitingPlayers = new();
     private static readonly ConcurrentDictionary<string, MazeDto> games = new();
-    private static readonly Random random = new();
 
     public string GetConnectionId()
     {
@@ -23,8 +21,6 @@ public class GameHub : Hub
         return [5, 6];
     }
 
-    private static readonly Lock _lock = new();
-
     public async Task<bool> SaveMaze(MazeDto maze)
     {
         for (int i = 0; i < maze.HorizontalWalls.Length; i++)
@@ -34,66 +30,15 @@ public class GameHub : Hub
         return true;
     }
     
-    public async Task FindGame()
+    public async Task GameSearch()
     {
-        var userId = Context.UserIdentifier;
-        
-        var connectionId = Context.ConnectionId;
-
-        if (userId == null || connectionId == null)
-        {
-            return;
-        }
-
-        WaitingPlayer? opponent = null;
-        string? opponentId = null;
-
-        lock (_lock)
-        {
-            if (waitingPlayers.ContainsKey(userId))
-            {
-                throw new HubException("You are already in queue");
-            }
-
-            if (!waitingPlayers.IsEmpty)
-            {
-                var keys = waitingPlayers.Keys.ToList();
-                opponentId = keys[random.Next(keys.Count)];
-                opponent = waitingPlayers[opponentId];
-            }
-            else
-            {
-                waitingPlayers.TryAdd(userId, new WaitingPlayer(userId, 80));
-            }
-        }
-
-        if (opponent != null && opponentId != null)
-        {
-            var gameId = Guid.NewGuid().ToString();
-
-            // Уведомляем обоих игроков, что матч найден
-            await Clients.Client(opponent.ConnectionId)
-                .SendAsync("GameFound", gameId, userId);
-
-            await Clients.Caller
-                .SendAsync("GameFound", gameId, opponentId);
-
-            waitingPlayers.TryRemove(userId, out _);
-            waitingPlayers.TryRemove(opponentId, out _);
-        }
+        await lobbyService.GameSearch(Context.UserIdentifier, Context.ConnectionId, Clients);
     }
 
-    public Task CancelSearch()
+    public async Task GameCancelSearch()
     {
-        var userId = Context.UserIdentifier;
-        if (userId != null)
-        {
-            waitingPlayers.TryRemove(userId, out _);
-        }
-        return Task.CompletedTask;
+        await lobbyService.GameCancelSearch(Context.UserIdentifier);
     }
-    
-    private record WaitingPlayer(string ConnectionId, int rating);
 
     public class UserDto
     {

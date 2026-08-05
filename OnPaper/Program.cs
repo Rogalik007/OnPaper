@@ -8,6 +8,7 @@ using OnPaper.Infrastructure;
 using OnPaper.Services.AuthService;
 using OnPaper.Services.LobbyService;
 using OnPaper.Services.UsersService;
+using OnPaper.Services.GameTreasureService;
 using StackExchange.Redis;
 
 DotNetEnv.Env.Load();
@@ -45,6 +46,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 builder.Services.AddScoped<ILobbyService, LobbyService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();
+builder.Services.AddScoped<IGameTreasureService, GameTreasureService>();
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
