@@ -2,32 +2,24 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Collections.Concurrent;
+using OnPaper.Services.GameTreasureService;
 using OnPaper.Services.LobbyService;
+using OnPaper.Common.Models.Utils;
 
 namespace OnPaper.Hubs;
 
 [Authorize]
-public class GameHub(ILobbyService lobbyService) : Hub
+public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasureService) : Hub
 {
-    private static readonly ConcurrentDictionary<string, MazeDto> games = new();
-
-    public string GetConnectionId()
-    {
-        return Context.ConnectionId;
-    }
     
     public async Task<int[]> GetMazeSize()
     {
         return [5, 6];
     }
 
-    public async Task<bool> SaveMaze(MazeDto maze)
+    public async Task<bool> SaveMaze(MazeModel maze)
     {
-        for (int i = 0; i < maze.HorizontalWalls.Length; i++)
-        {
-            Console.WriteLine(maze.HorizontalWalls[i]);
-        }
-        return true;
+        return await gameTreasureService.SaveMaze(Context.UserIdentifier, maze);
     }
     
     public async Task GameSearch()
@@ -38,23 +30,5 @@ public class GameHub(ILobbyService lobbyService) : Hub
     public async Task GameCancelSearch()
     {
         await lobbyService.GameCancelSearch(Context.UserIdentifier);
-    }
-
-    public class UserDto
-    {
-        public int Id { get; set; }
-        public int ConnectionId { get; set; }
-        public int UserId { get; set; }
-        public int GameId { get; set; }
-    }
-
-    public class MazeDto
-    {
-        public int Id { get; set; }
-        public int SizeX { get; set; }
-        public int SizeY { get; set; }
-        public int[] HorizontalWalls { get; set; }
-        public int[] VerticalWalls { get; set; }
-        public int Treasure { get; set; }
     }
 }
