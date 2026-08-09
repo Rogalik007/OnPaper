@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OnPaper.Services.UsersService;
 using OnPaper.Common.Models.Utils;
@@ -35,6 +37,7 @@ public class UsersController(IUsersService service) : ControllerBase
         return error.Type switch
         {
             ErrorType.BadRequest => BadRequest(error.Message),
+            ErrorType.NotFound => NotFound(error.Message),
             ErrorType.Conflict => Conflict(error.Message),
             _ => StatusCode(500, error.Message)
         };

@@ -2,6 +2,7 @@
 public enum ErrorType
 {
     BadRequest,
+    NotFound,
     Conflict,
     ServerError
 }

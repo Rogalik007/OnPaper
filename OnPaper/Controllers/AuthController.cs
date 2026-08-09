@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using OnPaper.Common.Enums;
 using OnPaper.Common.Models.Utils;
 using OnPaper.Services.AuthService;
@@ -40,6 +42,7 @@ public class AuthController(IAuthService service) : ControllerBase
         return error.Type switch
         {
             ErrorType.BadRequest => BadRequest(error.Message),
+            ErrorType.NotFound => NotFound(error.Message),
             ErrorType.Conflict => Conflict(error.Message),
             _ => StatusCode(500, error.Message)
         };

@@ -1,5 +1,10 @@
+using System;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using OnPaper.Common.Models.Config;
@@ -8,6 +13,7 @@ using OnPaper.Infrastructure;
 using OnPaper.Services.AuthService;
 using OnPaper.Services.LobbyService;
 using OnPaper.Services.UsersService;
+using OnPaper.Services.GameRoomService;
 using OnPaper.Services.GameTreasureService;
 using StackExchange.Redis;
 
@@ -43,13 +49,19 @@ var conf = new ConfigurationOptions {
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     ConnectionMultiplexer.Connect(conf));
 
+builder.Services.AddScoped<IGameRoomService, GameRoomService>();
 builder.Services.AddScoped<ILobbyService, LobbyService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IGameTreasureService, GameTreasureService>();
 
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
+
+// По умолчанию хаб отдаёт свойства в PascalCase - клиенту на TS удобнее camelCase.
+// Входящие сообщения разбираются без учёта регистра, поэтому их это не ломает.
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+        options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
 
 builder.Services.AddCors(options =>
 {
