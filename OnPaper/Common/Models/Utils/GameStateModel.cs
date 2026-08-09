@@ -16,8 +16,11 @@ public class GameStateModel
     // UserId -> клетка, на которой игрок стоит в лабиринте противника
     public Dictionary<string, int> Positions { get; set; } = new();
 
-    // UserId нашедшего клад, null - партия ещё идёт
+    // UserId победителя, null - партия ещё идёт
     public string? Winner { get; set; }
+
+    // Победа засчитана из-за того, что противник не вернулся, а не за найденный клад
+    public bool EndedByDisconnect { get; set; }
 
     // Стенки, в которые игрок уже упирался. Нужны, чтобы после перезагрузки
     // страницы открытая часть чужого лабиринта не потерялась.

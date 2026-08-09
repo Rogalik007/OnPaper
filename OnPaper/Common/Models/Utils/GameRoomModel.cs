@@ -14,3 +14,6 @@ public class GameRoomModel
 // ConnectionId нужен, чтобы отправлять сообщения обоим игрокам комнаты,
 // UserId - потому что он не меняется при переподключении и по нему лежат лабиринты.
 public record GamePlayerModel(string UserId, string ConnectionId);
+
+// Игрок отвалился: если до Deadline он не вернётся, партия закончится
+public record PlayerLeftModel(string UserId, System.DateTimeOffset Deadline);

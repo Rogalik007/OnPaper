@@ -12,6 +12,8 @@ public class GameRoomService(IConnectionMultiplexer redis) : IGameRoomService
 
     private const string GAME_CONFIG = "game:";
     private const string STATE_CONFIG = ":state";
+    private const string LEFT_CONFIG = ":left";
+    private const string PLAYER_CONFIG = "player:";
 
     // В отличие от ключей ожидания в лобби, комната живёт всю партию, а не 60 секунд.
     private static readonly TimeSpan GameLifetime = TimeSpan.FromHours(2);
@@ -25,6 +27,9 @@ public class GameRoomService(IConnectionMultiplexer redis) : IGameRoomService
         };
 
         await _redisDb.StringSetAsync(GetRoomKey(room.GameId), JsonSerializer.Serialize(room), GameLifetime);
+
+        await SetPlayerGame(first.UserId, room.GameId);
+        await SetPlayerGame(second.UserId, room.GameId);
 
         return room;
     }
@@ -85,6 +90,42 @@ public class GameRoomService(IConnectionMultiplexer redis) : IGameRoomService
     public async Task SaveState(string gameId, GameStateModel state)
         => await _redisDb.StringSetAsync(GetStateKey(gameId), JsonSerializer.Serialize(state), GameLifetime);
 
+    public async Task SetPlayerGame(string userId, string gameId)
+        => await _redisDb.StringSetAsync(GetPlayerKey(userId), gameId, GameLifetime);
+
+    public async Task<string?> GetPlayerGame(string userId)
+    {
+        var gameId = await _redisDb.StringGetAsync(GetPlayerKey(userId));
+
+        return gameId.IsNullOrEmpty ? null : gameId.ToString();
+    }
+
+    public async Task SetPlayerLeft(string gameId, PlayerLeftModel left)
+        => await _redisDb.StringSetAsync(GetLeftKey(gameId), JsonSerializer.Serialize(left), GameLifetime);
+
+    public async Task<PlayerLeftModel?> GetPlayerLeft(string gameId)
+    {
+        var json = await _redisDb.StringGetAsync(GetLeftKey(gameId));
+
+        if (json.IsNullOrEmpty)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<PlayerLeftModel>(json.ToString());
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task ClearPlayerLeft(string gameId) => await _redisDb.KeyDeleteAsync(GetLeftKey(gameId));
+
     private static string GetRoomKey(string gameId) => $"{GAME_CONFIG}{gameId}";
     private static string GetStateKey(string gameId) => $"{GAME_CONFIG}{gameId}{STATE_CONFIG}";
+    private static string GetLeftKey(string gameId) => $"{GAME_CONFIG}{gameId}{LEFT_CONFIG}";
+    private static string GetPlayerKey(string userId) => $"{PLAYER_CONFIG}{userId}";
 }

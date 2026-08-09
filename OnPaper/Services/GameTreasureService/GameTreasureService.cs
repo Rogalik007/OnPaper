@@ -25,6 +25,9 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
     // Сколько секунд даётся на ход
     private const int TURN_SECONDS = 20;
 
+    // Сколько ждём отвалившегося игрока, прежде чем засчитать поражение
+    private const int LEAVE_SECONDS = 20;
+
     private const string MAZE_CONFIG = "maze:";
     private static readonly TimeSpan MazeLifetime = TimeSpan.FromHours(2);
 
@@ -36,7 +39,7 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
     // Состояние партии для клиента: и при первом заходе, и после перезагрузки страницы.
     // Здесь же отсекаются чужие и несуществующие игры.
     public async Task<ResultModel<GameSnapshotModel>> GetGameState(string? userId, string? gameId,
-        string? connectionId)
+        string? connectionId, IHubCallerClients clients)
     {
         if (string.IsNullOrEmpty(userId))
         {
@@ -68,11 +71,26 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
             await gameRoomService.SaveRoom(room);
         }
 
+        await gameRoomService.SetPlayerGame(userId, room.GameId);
+
         var snapshot = new GameSnapshotModel
         {
             Size = GetMazeSize(),
             MyMaze = await GetMaze(room.GameId, userId)
         };
+
+        var left = await gameRoomService.GetPlayerLeft(room.GameId);
+
+        if (left != null && left.UserId == userId)
+        {
+            // Игрок вернулся (перезагрузил страницу) - снимаем отсчёт у противника
+            await gameRoomService.ClearPlayerLeft(room.GameId);
+            await clients.User(opponent.UserId).SendAsync("OpponentReturned");
+        }
+        else if (left != null)
+        {
+            snapshot.OpponentLeftSeconds = GetSecondsLeft(left.Deadline);
+        }
 
         var state = await gameRoomService.GetState(room.GameId);
 
@@ -85,16 +103,90 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
         snapshot.MyPosition = state.GetPosition(userId);
         snapshot.OpponentPosition = state.GetPosition(opponent.UserId);
         snapshot.YourTurn = state.Turn == userId;
-        snapshot.SecondsLeft = GetSecondsLeft(state);
+        snapshot.SecondsLeft = GetSecondsLeft(state.TurnDeadline);
         snapshot.DiscoveredWalls = [.. state.GetDiscoveredWalls(userId)];
         snapshot.YouWon = state.Winner == null ? null : state.Winner == userId;
+        snapshot.EndedByDisconnect = state.EndedByDisconnect;
 
         return ResultModel.Ok(snapshot);
     }
 
-    private static int GetSecondsLeft(GameStateModel state)
+    // Соединение оборвалось: предупреждаем оставшегося игрока и даём ушедшему время вернуться.
+    // Перезагрузка страницы тоже сюда попадает, поэтому партия заканчивается не сразу.
+    public async Task PlayerLeft(string? userId, IHubCallerClients clients)
     {
-        var left = (state.TurnDeadline - DateTimeOffset.UtcNow).TotalSeconds;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return;
+        }
+
+        var gameId = await gameRoomService.GetPlayerGame(userId);
+        var room = await gameRoomService.GetRoom(gameId);
+        var opponent = room?.GetOpponent(userId);
+
+        if (room == null || opponent == null)
+        {
+            return;
+        }
+
+        var state = await gameRoomService.GetState(room.GameId);
+
+        if (state?.Winner != null)
+        {
+            return;
+        }
+
+        await gameRoomService.SetPlayerLeft(room.GameId,
+            new PlayerLeftModel(userId, DateTimeOffset.UtcNow.AddSeconds(LEAVE_SECONDS)));
+
+        await clients.User(opponent.UserId).SendAsync("OpponentLeft", LEAVE_SECONDS);
+    }
+
+    // Вызывается оставшимся игроком, когда время ожидания вышло. Дедлайн проверяет сервер.
+    public async Task<ResultModel<bool>> CheckOpponentLeft(string? userId, string? gameId,
+        IHubCallerClients clients)
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            return ResultModel.Fail<bool>("User is not authorized", ErrorType.BadRequest);
+        }
+
+        var room = await gameRoomService.GetRoom(gameId);
+        var opponent = room?.GetOpponent(userId);
+
+        if (room == null || room.GetPlayer(userId) == null || opponent == null)
+        {
+            return ResultModel.Fail<bool>("Game not found", ErrorType.NotFound);
+        }
+
+        var left = await gameRoomService.GetPlayerLeft(room.GameId);
+
+        // Игрок мог вернуться или уйти уже после проверки - это не ошибка
+        if (left == null || left.UserId != opponent.UserId || DateTimeOffset.UtcNow < left.Deadline)
+        {
+            return ResultModel.Ok(false);
+        }
+
+        var state = await gameRoomService.GetState(room.GameId) ?? new GameStateModel();
+
+        if (state.Winner != null)
+        {
+            return ResultModel.Ok(false);
+        }
+
+        state.Winner = userId;
+        state.EndedByDisconnect = true;
+
+        await gameRoomService.SaveState(room.GameId, state);
+        await gameRoomService.ClearPlayerLeft(room.GameId);
+        await SendGameOver(room, userId, clients, byDisconnect: true);
+
+        return ResultModel.Ok(true);
+    }
+
+    private static int GetSecondsLeft(DateTimeOffset deadline)
+    {
+        var left = (deadline - DateTimeOffset.UtcNow).TotalSeconds;
 
         return left <= 0 ? 0 : (int)Math.Ceiling(left);
     }
@@ -119,6 +211,14 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
         if (room.GetPlayer(userId) == null || opponent == null)
         {
             return ResultModel.Fail<bool>("You are not in this game", ErrorType.BadRequest);
+        }
+
+        // Партия могла закончиться, пока игрок рисовал: например, он сам отвалился и не успел вернуться
+        var currentState = await gameRoomService.GetState(room.GameId);
+
+        if (currentState?.Winner != null)
+        {
+            return ResultModel.Fail<bool>("Game is over", ErrorType.BadRequest);
         }
 
         var validation = Validate(maze);
@@ -377,11 +477,12 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
         }
     }
 
-    private static async Task SendGameOver(GameRoomModel room, string winner, IHubCallerClients clients)
+    private static async Task SendGameOver(GameRoomModel room, string winner, IHubCallerClients clients,
+        bool byDisconnect = false)
     {
         foreach (var player in room.Players)
         {
-            await clients.User(player.UserId).SendAsync("GameOver", player.UserId == winner);
+            await clients.User(player.UserId).SendAsync("GameOver", player.UserId == winner, byDisconnect);
         }
     }
 

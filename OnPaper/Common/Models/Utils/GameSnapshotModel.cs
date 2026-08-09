@@ -21,4 +21,10 @@ public class GameSnapshotModel
 
     // null - партия ещё идёт
     public bool? YouWon { get; set; }
+
+    // Партия закончилась тем, что противник не вернулся
+    public bool EndedByDisconnect { get; set; }
+
+    // Сколько секунд осталось ждать отвалившегося противника. null - он на месте
+    public int? OpponentLeftSeconds { get; set; }
 }

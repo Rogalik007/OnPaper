@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
 using OnPaper.Services.GameTreasureService;
@@ -18,7 +19,8 @@ public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasu
 
     public async Task<GameSnapshotModel> GetGameState(string gameId)
     {
-        var result = await gameTreasureService.GetGameState(Context.UserIdentifier, gameId, Context.ConnectionId);
+        var result = await gameTreasureService.GetGameState(
+            Context.UserIdentifier, gameId, Context.ConnectionId, Clients);
 
         if (!result.IsSuccess)
         {
@@ -58,6 +60,22 @@ public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasu
         {
             throw new HubException(result.Error!.Message);
         }
+    }
+
+    public async Task CheckOpponentLeft(string gameId)
+    {
+        var result = await gameTreasureService.CheckOpponentLeft(Context.UserIdentifier, gameId, Clients);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        await gameTreasureService.PlayerLeft(Context.UserIdentifier, Clients);
+        await base.OnDisconnectedAsync(exception);
     }
 
     public async Task GameSearch()
