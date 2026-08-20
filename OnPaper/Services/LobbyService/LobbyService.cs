@@ -48,7 +48,15 @@ public class LobbyService(IConnectionMultiplexer redis, IGameRoomService gameRoo
                 return;
             }
 
-            await _redisDb.KeyDeleteAsync(randomKey);
+            // DEL атомарен и возвращает true только тому, кто реально удалил ключ.
+            // Без этой проверки два одновременных поиска могли выбрать одного и того же
+            // соперника и создать для него две разные комнаты.
+            if (!await _redisDb.KeyDeleteAsync(randomKey))
+            {
+                await GameSearch(userId, connectionId, clients);
+                return;
+            }
+
             await _redisDb.KeyDeleteAsync(userKey);
 
             // Комната создаётся до отправки GameFound: игрок сразу после него зовёт SaveMaze,

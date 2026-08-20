@@ -16,22 +16,29 @@ namespace OnPaper.Services.AuthService;
 
 public class AuthService(OnPaperDbContext dbContext) : IAuthService
 {
+    // Считается один раз при старте и используется, когда пользователя не существует,
+    // чтобы Login тратил на bcrypt одинаковое время независимо от того, есть такой email или нет.
+    // Без этого по времени ответа можно было бы отличать существующие email от несуществующих.
+    private static readonly string DummyPasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
+
     public async Task<ResultModel<AuthModel>> Login(string email, string password, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
         {
             return ResultModel.Fail<AuthModel>("Email is required", ErrorType.BadRequest);
         }
-        
+
         User? user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.Password))
+        var isPasswordValid = BCrypt.Net.BCrypt.Verify(password, user?.Password ?? DummyPasswordHash);
+
+        if (user == null || !isPasswordValid)
         {
             return ResultModel.Fail<AuthModel>("Invalid email or password", ErrorType.BadRequest);
         }
-        
+
         string token = GenerateToken(user.Id.ToString(), user.Email);
-        
+
         return ResultModel.Ok(new AuthModel(token, user.Id));
     }
 

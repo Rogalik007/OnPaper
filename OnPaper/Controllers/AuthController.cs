@@ -1,6 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using OnPaper.Common.Enums;
 using OnPaper.Common.Models.Utils;
 using OnPaper.Services.AuthService;
@@ -8,6 +9,7 @@ using OnPaper.Services.AuthService;
 namespace OnPaper.Controllers;
 
 [ApiController]
+[EnableRateLimiting("auth")]
 [Route("[controller]")]
 public class AuthController(IAuthService service) : ControllerBase
 {
