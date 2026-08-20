@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
+using OnPaper.Services.ChatService;
 using OnPaper.Services.GameTreasureService;
 using OnPaper.Services.LobbyService;
 using OnPaper.Common.Models.Utils;
@@ -9,7 +10,8 @@ using OnPaper.Common.Models.Utils;
 namespace OnPaper.Hubs;
 
 [Authorize]
-public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasureService) : Hub
+public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasureService, IChatService chatService)
+    : Hub
 {
     
     public int[] GetMazeSize()
@@ -86,5 +88,15 @@ public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasu
     public async Task GameCancelSearch()
     {
         await lobbyService.GameCancelSearch(Context.UserIdentifier);
+    }
+
+    public async Task SendChatMessage(string gameId, string text)
+    {
+        var result = await chatService.SendMessage(Context.UserIdentifier, gameId, text, Clients);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
     }
 }

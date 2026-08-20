@@ -27,4 +27,7 @@ public class GameSnapshotModel
 
     // Сколько секунд осталось ждать отвалившегося противника. null - он на месте
     public int? OpponentLeftSeconds { get; set; }
+
+    // История чата партии - нужна, чтобы её не терять при перезагрузке страницы
+    public ChatMessageModel[] ChatMessages { get; set; } = [];
 }

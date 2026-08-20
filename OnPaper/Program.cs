@@ -15,6 +15,8 @@ using OnPaper.Services.LobbyService;
 using OnPaper.Services.UsersService;
 using OnPaper.Services.GameRoomService;
 using OnPaper.Services.GameTreasureService;
+using OnPaper.Services.RatingService;
+using OnPaper.Services.ChatService;
 using StackExchange.Redis;
 
 DotNetEnv.Env.Load();
@@ -54,6 +56,8 @@ builder.Services.AddScoped<ILobbyService, LobbyService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IGameTreasureService, GameTreasureService>();
+builder.Services.AddScoped<IRatingService, RatingService>();
+builder.Services.AddScoped<IChatService, ChatService>();
 
 builder.Services.AddControllers();
 
@@ -67,7 +71,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "http://185.21.11.60:5173")
             .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();

@@ -6,12 +6,16 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using OnPaper.Common.Enums;
 using OnPaper.Common.Models.Utils;
+using OnPaper.Services.ChatService;
 using OnPaper.Services.GameRoomService;
+using OnPaper.Services.RatingService;
 using StackExchange.Redis;
 
 namespace OnPaper.Services.GameTreasureService;
 
-public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService gameRoomService)
+public class GameTreasureService(
+    IConnectionMultiplexer redis, IGameRoomService gameRoomService, IRatingService ratingService,
+    IChatService chatService)
     : IGameTreasureService
 {
     private readonly IDatabase _redisDb = redis.GetDatabase();
@@ -76,7 +80,8 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
         var snapshot = new GameSnapshotModel
         {
             Size = GetMazeSize(),
-            MyMaze = await GetMaze(room.GameId, userId)
+            MyMaze = await GetMaze(room.GameId, userId),
+            ChatMessages = await chatService.GetHistory(room.GameId)
         };
 
         var left = await gameRoomService.GetPlayerLeft(room.GameId);
@@ -179,7 +184,7 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
 
         await gameRoomService.SaveState(room.GameId, state);
         await gameRoomService.ClearPlayerLeft(room.GameId);
-        await SendGameOver(room, userId, clients, byDisconnect: true);
+        await EndGame(room, userId, clients, byDisconnect: true);
 
         return ResultModel.Ok(true);
     }
@@ -352,7 +357,7 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
 
         if (state.Winner != null)
         {
-            await SendGameOver(room, state.Winner, clients);
+            await EndGame(room, state.Winner, clients);
         }
         else
         {
@@ -477,9 +482,15 @@ public class GameTreasureService(IConnectionMultiplexer redis, IGameRoomService 
         }
     }
 
-    private static async Task SendGameOver(GameRoomModel room, string winner, IHubCallerClients clients,
+    // Партия закончилась - начисляем очки победителю в рейтинге и оповещаем обоих игроков.
+    private async Task EndGame(GameRoomModel room, string winner, IHubCallerClients clients,
         bool byDisconnect = false)
     {
+        if (int.TryParse(winner, out var winnerId))
+        {
+            await ratingService.AddWinPoints(winnerId);
+        }
+
         foreach (var player in room.Players)
         {
             await clients.User(player.UserId).SendAsync("GameOver", player.UserId == winner, byDisconnect);
