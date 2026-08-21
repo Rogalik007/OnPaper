@@ -117,3 +117,6 @@ src/.vs/config/applicationhost.config
 
 # JetBrains Rider's auto generated files
 .idea/
+
+# Локальный dev-сертификат HTTPS - содержит приватный ключ
+https/

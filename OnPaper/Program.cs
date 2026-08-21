@@ -31,6 +31,17 @@ AuthOptions.ISSUER = Environment.GetEnvironmentVariable("JWT_ISSUER")!;
 AuthOptions.AUDIENCE = Environment.GetEnvironmentVariable("JWT_AUDIENCE")!;
 AuthOptions.KEY = Environment.GetEnvironmentVariable("JWT_KEY")!;
 
+// Явный биндинг на HTTPS (а не launchSettings.json), чтобы порт и сертификат были одинаковыми
+// независимо от того, как запущен процесс - dotnet run, systemd, докер и т.д. Сертификат
+// самоподписанный, поэтому в браузере при первом заходе нужно будет подтвердить исключение.
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5244, listenOptions =>
+        listenOptions.UseHttps(
+            Path.Combine(builder.Environment.ContentRootPath, "https", "devcert.pfx"),
+            Environment.GetEnvironmentVariable("HTTPS_CERT_PASSWORD")));
+});
+
 var connectionStringBuilder = new NpgsqlConnectionStringBuilder
 {
     Host = Environment.GetEnvironmentVariable("DB_HOST"),
@@ -81,7 +92,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://185.21.11.60:5173")
+        policy.WithOrigins("https://localhost:8080", "https://185.21.11.60:8080")
             .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();
