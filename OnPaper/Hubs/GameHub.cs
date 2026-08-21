@@ -5,12 +5,15 @@ using System.Threading.Tasks;
 using OnPaper.Services.ChatService;
 using OnPaper.Services.GameTreasureService;
 using OnPaper.Services.LobbyService;
+using OnPaper.Services.RaceService;
 using OnPaper.Common.Models.Utils;
 
 namespace OnPaper.Hubs;
 
 [Authorize]
-public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasureService, IChatService chatService)
+public class GameHub(
+    ILobbyService lobbyService, IGameTreasureService gameTreasureService, IChatService chatService,
+    IRaceService raceService)
     : Hub
 {
     
@@ -74,9 +77,20 @@ public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasu
         }
     }
 
+    public async Task LeaveGame(string gameId)
+    {
+        var result = await gameTreasureService.LeaveGame(Context.UserIdentifier, gameId, Clients);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         await gameTreasureService.PlayerLeft(Context.UserIdentifier, Clients);
+        await raceService.CancelSearch(Context.UserIdentifier);
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -88,6 +102,38 @@ public class GameHub(ILobbyService lobbyService, IGameTreasureService gameTreasu
     public async Task GameCancelSearch()
     {
         await lobbyService.GameCancelSearch(Context.UserIdentifier);
+    }
+
+    public async Task RaceSearch()
+    {
+        await raceService.Search(Context.UserIdentifier, Context.ConnectionId);
+    }
+
+    public async Task RaceCancelSearch()
+    {
+        await raceService.CancelSearch(Context.UserIdentifier);
+    }
+
+    public async Task<RaceSnapshotModel> GetRaceState(string gameId)
+    {
+        var result = await raceService.GetRaceState(Context.UserIdentifier, gameId, Context.ConnectionId);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+
+        return result.Value!;
+    }
+
+    public async Task RaceMove(string gameId, int direction)
+    {
+        var result = await raceService.Move(Context.UserIdentifier, gameId, direction, Clients);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
     }
 
     public async Task SendChatMessage(string gameId, string text)
