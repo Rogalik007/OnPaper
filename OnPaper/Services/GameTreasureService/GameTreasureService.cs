@@ -189,6 +189,40 @@ public class GameTreasureService(
         return ResultModel.Ok(true);
     }
 
+    // Явный выход игрока в меню: в отличие от обрыва соединения, здесь не даём
+    // время на возврат - игрок сам решил уйти, поэтому партия заканчивается сразу.
+    public async Task<ResultModel<bool>> LeaveGame(string? userId, string? gameId, IHubCallerClients clients)
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            return ResultModel.Fail<bool>("User is not authorized", ErrorType.BadRequest);
+        }
+
+        var room = await gameRoomService.GetRoom(gameId);
+        var opponent = room?.GetOpponent(userId);
+
+        if (room == null || room.GetPlayer(userId) == null || opponent == null)
+        {
+            return ResultModel.Fail<bool>("Game not found", ErrorType.NotFound);
+        }
+
+        var state = await gameRoomService.GetState(room.GameId) ?? new GameStateModel();
+
+        if (state.Winner != null)
+        {
+            return ResultModel.Ok(false);
+        }
+
+        state.Winner = opponent.UserId;
+        state.EndedByDisconnect = true;
+
+        await gameRoomService.SaveState(room.GameId, state);
+        await gameRoomService.ClearPlayerLeft(room.GameId);
+        await EndGame(room, opponent.UserId, clients, byDisconnect: true);
+
+        return ResultModel.Ok(true);
+    }
+
     private static int GetSecondsLeft(DateTimeOffset deadline)
     {
         var left = (deadline - DateTimeOffset.UtcNow).TotalSeconds;

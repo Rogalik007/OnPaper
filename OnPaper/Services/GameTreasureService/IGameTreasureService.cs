@@ -19,4 +19,5 @@ public interface IGameTreasureService
 
     Task PlayerLeft(string? userId, IHubCallerClients clients);
     Task<ResultModel<bool>> CheckOpponentLeft(string? userId, string? gameId, IHubCallerClients clients);
+    Task<ResultModel<bool>> LeaveGame(string? userId, string? gameId, IHubCallerClients clients);
 }
