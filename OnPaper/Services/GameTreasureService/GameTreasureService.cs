@@ -23,6 +23,9 @@ public class GameTreasureService(
     private const int MAZE_SIZE_X = 5;
     private const int MAZE_SIZE_Y = 6;
 
+    // Ровно столько мин и супер-мин обязаны быть на каждом лабиринте.
+    private const int REQUIRED_MINES_COUNT = 2;
+
     // Оба игрока начинают из левого верхнего угла чужого лабиринта.
     private const int START_CELL = 0;
 
@@ -81,7 +84,8 @@ public class GameTreasureService(
         {
             Size = GetMazeSize(),
             MyMaze = await GetMaze(room.GameId, userId),
-            ChatMessages = await chatService.GetHistory(room.GameId)
+            ChatMessages = await chatService.GetHistory(room.GameId),
+            OpponentNickname = opponent.Nickname
         };
 
         var left = await gameRoomService.GetPlayerLeft(room.GameId);
@@ -110,6 +114,7 @@ public class GameTreasureService(
         snapshot.YourTurn = state.Turn == userId;
         snapshot.SecondsLeft = GetSecondsLeft(state.TurnDeadline);
         snapshot.DiscoveredWalls = [.. state.GetDiscoveredWalls(userId)];
+        snapshot.DiscoveredMines = [.. state.GetDiscoveredMines(userId)];
         snapshot.YouWon = state.Winner == null ? null : state.Winner == userId;
         snapshot.EndedByDisconnect = state.EndedByDisconnect;
 
@@ -358,6 +363,7 @@ public class GameTreasureService(
         var position = state.GetPosition(userId);
         var moveDirection = (Direction)direction;
         var isBlocked = maze.HasWall(position, moveDirection);
+        string? minePenalty = null;
 
         if (isBlocked)
         {
@@ -372,19 +378,32 @@ public class GameTreasureService(
             {
                 state.Winner = userId;
             }
+            else if (position == maze.SuperMine)
+            {
+                minePenalty = "supermine";
+                state.AddDiscoveredMine(userId, position, isSuper: true);
+                state.AddSkipTurns(userId, 2);
+            }
+            else if (maze.Mines.Contains(position))
+            {
+                minePenalty = "mine";
+                state.AddDiscoveredMine(userId, position, isSuper: false);
+                state.AddSkipTurns(userId, 1);
+            }
         }
 
-        // Ход переходит к противнику в любом случае: упереться в стенку - тоже ход
+        // Ход переходит к противнику в любом случае: упереться в стенку - тоже ход.
+        // Если у противника накоплены пропуски ходов от мин, GetNextTurn может вернуть ход обратно.
         if (state.Winner == null)
         {
-            state.Turn = opponent.UserId;
+            state.Turn = state.GetNextTurn(userId, opponent.UserId);
             state.TurnDeadline = GetTurnDeadline();
         }
 
         await gameRoomService.SaveState(room.GameId, state);
 
         // Стенку игрок видит только когда в неё упёрся - так поле и открывается
-        await clients.User(userId).SendAsync("MoveResult", position, isBlocked ? direction : null);
+        await clients.User(userId).SendAsync("MoveResult", position, isBlocked ? direction : null, minePenalty);
 
         // А противник видит, как по его собственному лабиринту ходят
         await clients.User(opponent.UserId).SendAsync("OpponentMoved", position);
@@ -568,6 +587,41 @@ public class GameTreasureService(
         if (maze.Treasure < 0 || maze.Treasure >= maze.CellsCount)
         {
             return ResultModel.Fail<bool>("Treasure is out of the maze", ErrorType.BadRequest);
+        }
+
+        if (maze.Mines.Length != REQUIRED_MINES_COUNT)
+        {
+            return ResultModel.Fail<bool>($"Exactly {REQUIRED_MINES_COUNT} mines must be placed", ErrorType.BadRequest);
+        }
+
+        if (maze.Mines.Any(m => m < 0 || m >= maze.CellsCount))
+        {
+            return ResultModel.Fail<bool>("Mine is out of the maze", ErrorType.BadRequest);
+        }
+
+        if (maze.Mines.Distinct().Count() != maze.Mines.Length)
+        {
+            return ResultModel.Fail<bool>("Mines must not overlap", ErrorType.BadRequest);
+        }
+
+        if (maze.SuperMine == null)
+        {
+            return ResultModel.Fail<bool>("Supermine is not placed", ErrorType.BadRequest);
+        }
+
+        if (maze.SuperMine < 0 || maze.SuperMine >= maze.CellsCount)
+        {
+            return ResultModel.Fail<bool>("Supermine is out of the maze", ErrorType.BadRequest);
+        }
+
+        if (maze.Mines.Contains(maze.SuperMine.Value))
+        {
+            return ResultModel.Fail<bool>("Supermine must not overlap a mine", ErrorType.BadRequest);
+        }
+
+        if (maze.Treasure == maze.SuperMine || maze.Mines.Contains(maze.Treasure.Value))
+        {
+            return ResultModel.Fail<bool>("Mines must not overlap the treasure", ErrorType.BadRequest);
         }
 
         if (!IsConnected(maze))

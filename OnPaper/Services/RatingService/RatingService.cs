@@ -33,12 +33,14 @@ public class RatingService(OnPaperDbContext dbContext) : IRatingService
     public async Task<IReadOnlyList<RatingEntry>> GetTopRatings(int count, CancellationToken cancellationToken = default)
     {
         // OrderBy должен идти до проекции в record - EF не умеет транслировать сортировку
-        // по свойству уже сконструированного RatingEntry.
-        return await dbContext.Ratings
+        // по свойству уже сконструированного RatingEntry. Ник считается уже после материализации,
+        // потому что Split по "@" в SQL не транслируется.
+        var rows = await dbContext.Ratings
             .Join(dbContext.Users, r => r.UserId, u => u.Id, (r, u) => new { u.Email, r.Score })
             .OrderByDescending(x => x.Score)
             .Take(count)
-            .Select(x => new RatingEntry(x.Email, x.Score))
             .ToListAsync(cancellationToken);
+
+        return rows.Select(x => new RatingEntry(NicknameUtil.FromEmail(x.Email), x.Score)).ToList();
     }
 }

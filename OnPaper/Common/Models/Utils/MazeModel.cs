@@ -20,6 +20,12 @@ public class MazeModel
     // Индекс клетки с кладом, null - клад ещё не поставлен.
     public int? Treasure { get; set; }
 
+    // Индексы клеток с минами (наступивший теряет 1 ход).
+    public int[] Mines { get; set; } = [];
+
+    // Индекс клетки с супер-миной (наступивший теряет 2 хода), null - ещё не поставлена.
+    public int? SuperMine { get; set; }
+
     [JsonIgnore]
     public int HorizontalWallsCount => SizeX * (SizeY - 1);
 

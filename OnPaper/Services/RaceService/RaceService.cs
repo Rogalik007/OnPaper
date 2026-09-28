@@ -34,9 +34,9 @@ public class RaceService(IHubContext<GameHub> hubContext, IRaceRoomService raceR
     private readonly List<WaitingPlayer> _pool = [];
     private CancellationTokenSource? _timerCts;
 
-    public Task Search(string? userId, string? connectionId)
+    public Task Search(string? userId, string? connectionId, string? nickname)
     {
-        if (userId == null || connectionId == null)
+        if (userId == null || connectionId == null || nickname == null)
         {
             return Task.CompletedTask;
         }
@@ -50,7 +50,7 @@ public class RaceService(IHubContext<GameHub> hubContext, IRaceRoomService raceR
                 throw new HubException("You are already in queue");
             }
 
-            _pool.Add(new WaitingPlayer(userId, connectionId));
+            _pool.Add(new WaitingPlayer(userId, connectionId, nickname));
 
             if (_pool.Count >= MAX_PLAYERS)
             {
@@ -151,7 +151,9 @@ public class RaceService(IHubContext<GameHub> hubContext, IRaceRoomService raceR
             GameId = gameId,
             SizeX = MAZE_SIZE_X,
             SizeY = MAZE_SIZE_Y,
-            Players = players.Select((p, i) => new RacePlayerModel(p.UserId, p.ConnectionId, positions[i])).ToArray()
+            Players = players
+                .Select((p, i) => new RacePlayerModel(p.UserId, p.ConnectionId, positions[i], p.Nickname))
+                .ToArray()
         };
 
         await raceRoomService.SaveRoom(room);
@@ -220,7 +222,9 @@ public class RaceService(IHubContext<GameHub> hubContext, IRaceRoomService raceR
             SizeX = room.SizeX,
             SizeY = room.SizeY,
             MyPosition = GetPosition(userId),
-            Players = room.Players.Select(p => new RacePlayerPositionModel(p.UserId, GetPosition(p.UserId))).ToList()
+            Players = room.Players
+                .Select(p => new RacePlayerPositionModel(p.UserId, GetPosition(p.UserId), p.Nickname))
+                .ToList()
         });
     }
 
@@ -291,5 +295,5 @@ public class RaceService(IHubContext<GameHub> hubContext, IRaceRoomService raceR
         return y * sizeX + x;
     }
 
-    private record WaitingPlayer(string UserId, string ConnectionId);
+    private record WaitingPlayer(string UserId, string ConnectionId, string Nickname);
 }

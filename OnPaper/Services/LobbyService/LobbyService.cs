@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
@@ -17,10 +18,10 @@ public class LobbyService(IConnectionMultiplexer redis, IGameRoomService gameRoo
 
     private static readonly Random Random = new();
     private const string WAITING_CONFIG = "waiting:";
-    
-    public async Task GameSearch(string? userId, string? connectionId, IHubCallerClients clients)
+
+    public async Task GameSearch(string? userId, string? connectionId, string? nickname, IHubCallerClients clients)
     {
-        if (userId == null || connectionId == null)
+        if (userId == null || connectionId == null || nickname == null)
         {
             return;
         }
@@ -39,12 +40,12 @@ public class LobbyService(IConnectionMultiplexer redis, IGameRoomService gameRoo
         {
             var randomKey = waitingKeys[Random.Next(waitingKeys.Count)];
             var opponentUserId = randomKey.ToString().Replace(WAITING_CONFIG, "");
-            var opponentConnectionId = await _redisDb.StringGetAsync(randomKey);
+            var opponentDataJson = await _redisDb.StringGetAsync(randomKey);
 
-            if (opponentConnectionId.IsNullOrEmpty)
+            if (opponentDataJson.IsNullOrEmpty)
             {
                 await _redisDb.KeyDeleteAsync(randomKey);
-                await GameSearch(userId, connectionId, clients);
+                await GameSearch(userId, connectionId, nickname, clients);
                 return;
             }
 
@@ -53,30 +54,35 @@ public class LobbyService(IConnectionMultiplexer redis, IGameRoomService gameRoo
             // соперника и создать для него две разные комнаты.
             if (!await _redisDb.KeyDeleteAsync(randomKey))
             {
-                await GameSearch(userId, connectionId, clients);
+                await GameSearch(userId, connectionId, nickname, clients);
                 return;
             }
 
             await _redisDb.KeyDeleteAsync(userKey);
 
+            var opponentData = JsonSerializer.Deserialize<WaitingPlayerData>(opponentDataJson.ToString())!;
+
             // Комната создаётся до отправки GameFound: игрок сразу после него зовёт SaveMaze,
             // и к этому моменту комната уже должна лежать в redis.
             var room = await gameRoomService.CreateRoom(
-                new GamePlayerModel(opponentUserId, opponentConnectionId!),
-                new GamePlayerModel(userId, connectionId));
+                new GamePlayerModel(opponentUserId, opponentData.ConnectionId, opponentData.Nickname),
+                new GamePlayerModel(userId, connectionId, nickname));
 
-            await clients.Client(opponentConnectionId!)
-                .SendAsync("GameFound", room.GameId, userId);
+            await clients.Client(opponentData.ConnectionId)
+                .SendAsync("GameFound", room.GameId, userId, nickname);
 
             await clients.Caller
-                .SendAsync("GameFound", room.GameId, opponentUserId);
+                .SendAsync("GameFound", room.GameId, opponentUserId, opponentData.Nickname);
         }
         else
         {
-            await _redisDb.StringSetAsync(userKey, connectionId);
+            var data = JsonSerializer.Serialize(new WaitingPlayerData(connectionId, nickname));
+            await _redisDb.StringSetAsync(userKey, data);
             await _redisDb.KeyExpireAsync(userKey, TimeSpan.FromSeconds(60));
         }
     }
+
+    private record WaitingPlayerData(string ConnectionId, string Nickname);
 
     public async Task GameCancelSearch(string? userId)
     {

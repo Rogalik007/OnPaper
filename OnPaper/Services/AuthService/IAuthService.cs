@@ -7,5 +7,6 @@ namespace OnPaper.Services.AuthService;
 public interface IAuthService
 {
     Task<ResultModel<AuthModel>> Login(string email, string password, CancellationToken cancellationToken);
-    Task<ResultModel<AuthModel>> Register(string email, string password, CancellationToken cancellationToken);
+    Task<ResultModel<int>> Register(string email, string password, CancellationToken cancellationToken);
+    Task<ResultModel<bool>> ConfirmEmail(string? token, CancellationToken cancellationToken);
 }

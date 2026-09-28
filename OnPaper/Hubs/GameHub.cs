@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
@@ -16,7 +17,17 @@ public class GameHub(
     IRaceService raceService)
     : Hub
 {
-    
+    // Отдельного поля для ника нет - используется часть email до "@" из токена
+    private string? Nickname
+    {
+        get
+        {
+            var email = Context.User?.FindFirst(ClaimTypes.Email)?.Value;
+            return email == null ? null : NicknameUtil.FromEmail(email);
+        }
+    }
+
+
     public int[] GetMazeSize()
     {
         return gameTreasureService.GetMazeSize();
@@ -96,7 +107,7 @@ public class GameHub(
 
     public async Task GameSearch()
     {
-        await lobbyService.GameSearch(Context.UserIdentifier, Context.ConnectionId, Clients);
+        await lobbyService.GameSearch(Context.UserIdentifier, Context.ConnectionId, Nickname, Clients);
     }
 
     public async Task GameCancelSearch()
@@ -106,7 +117,7 @@ public class GameHub(
 
     public async Task RaceSearch()
     {
-        await raceService.Search(Context.UserIdentifier, Context.ConnectionId);
+        await raceService.Search(Context.UserIdentifier, Context.ConnectionId, Nickname);
     }
 
     public async Task RaceCancelSearch()
@@ -138,7 +149,7 @@ public class GameHub(
 
     public async Task SendChatMessage(string gameId, string text)
     {
-        var result = await chatService.SendMessage(Context.UserIdentifier, gameId, text, Clients);
+        var result = await chatService.SendMessage(Context.UserIdentifier, Nickname, gameId, text, Clients);
 
         if (!result.IsSuccess)
         {

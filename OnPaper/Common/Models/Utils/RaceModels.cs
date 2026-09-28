@@ -1,7 +1,7 @@
 namespace OnPaper.Common.Models.Utils;
 
 // ConnectionId нужен, чтобы адресовать игрока в комнате; Position - его текущая клетка.
-public record RacePlayerModel(string UserId, string ConnectionId, int Position);
+public record RacePlayerModel(string UserId, string ConnectionId, int Position, string Nickname);
 
 public class RaceRoomModel
 {
@@ -11,7 +11,7 @@ public class RaceRoomModel
     public RacePlayerModel[] Players { get; set; } = [];
 }
 
-public record RacePlayerPositionModel(string UserId, int Position);
+public record RacePlayerPositionModel(string UserId, int Position, string Nickname);
 
 // Ответ GetRaceState: снимок комнаты для игрока, который в неё зашёл (в том числе после перезагрузки)
 public class RaceSnapshotModel

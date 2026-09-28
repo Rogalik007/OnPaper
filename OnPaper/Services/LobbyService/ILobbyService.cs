@@ -5,6 +5,6 @@ namespace OnPaper.Services.LobbyService;
 
 public interface ILobbyService
 {
-    Task GameSearch(string? userId, string? connectionId, IHubCallerClients clients);
+    Task GameSearch(string? userId, string? connectionId, string? nickname, IHubCallerClients clients);
     Task GameCancelSearch(string? userId);
 }

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace OnPaper.Models;
 
@@ -13,4 +14,13 @@ public class User
 
     [Column("password")]
     public required string Password { get; set; }
+
+    [Column("email_confirmed")]
+    public bool EmailConfirmed { get; set; }
+
+    [Column("email_confirmation_token")]
+    public string? EmailConfirmationToken { get; set; }
+
+    [Column("email_confirmation_token_expires_at")]
+    public DateTimeOffset? EmailConfirmationTokenExpiresAt { get; set; }
 }

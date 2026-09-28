@@ -35,10 +35,23 @@ public class AuthController(IAuthService service) : ControllerBase
         {
             return GetActionResultError(result.Error!);
         }
-        
-        return Ok(new { id = result.Value.Id, token = result.Value.Token });
+
+        return Ok(new { id = result.Value, message = "Check your email to confirm your account" });
     }
-    
+
+    [HttpPost("/confirm-email")]
+    public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailData data, CancellationToken cancellationToken)
+    {
+        var result = await service.ConfirmEmail(data.Token, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return GetActionResultError(result.Error!);
+        }
+
+        return Ok();
+    }
+
     private ObjectResult GetActionResultError(ResultError error)
     {
         return error.Type switch
@@ -51,4 +64,5 @@ public class AuthController(IAuthService service) : ControllerBase
     }
     
     public record LoginData(string Email, string Password);
+    public record ConfirmEmailData(string Token);
 }

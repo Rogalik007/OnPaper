@@ -27,8 +27,8 @@ public class ChatService(IConnectionMultiplexer redis, IGameRoomService gameRoom
     // поэтому лимит на частоту сообщений приходится ставить здесь.
     private static readonly TimeSpan ChatCooldown = TimeSpan.FromMilliseconds(500);
 
-    public async Task<ResultModel<ChatMessageModel>> SendMessage(string? userId, string? gameId, string? text,
-        IHubCallerClients clients)
+    public async Task<ResultModel<ChatMessageModel>> SendMessage(string? userId, string? nickname, string? gameId,
+        string? text, IHubCallerClients clients)
     {
         if (string.IsNullOrEmpty(userId))
         {
@@ -65,7 +65,7 @@ public class ChatService(IConnectionMultiplexer redis, IGameRoomService gameRoom
             return ResultModel.Fail<ChatMessageModel>("You are sending messages too fast", ErrorType.BadRequest);
         }
 
-        var message = new ChatMessageModel(userId, text, DateTimeOffset.UtcNow);
+        var message = new ChatMessageModel(userId, nickname ?? "Player", text, DateTimeOffset.UtcNow);
         var key = GetChatKey(room.GameId);
 
         await _redisDb.ListRightPushAsync(key, JsonSerializer.Serialize(message));

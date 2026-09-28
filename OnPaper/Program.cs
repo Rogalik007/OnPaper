@@ -22,6 +22,7 @@ using OnPaper.Services.RatingService;
 using OnPaper.Services.ChatService;
 using OnPaper.Services.RaceRoomService;
 using OnPaper.Services.RaceService;
+using OnPaper.Services.EmailService;
 using StackExchange.Redis;
 
 DotNetEnv.Env.Load();
@@ -74,6 +75,7 @@ builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IGameTreasureService, GameTreasureService>();
 builder.Services.AddScoped<IRatingService, RatingService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 // Синглтоны: очередь матчмейкинга гонки живёт в памяти процесса, а не в Redis,
 // поэтому и хранящий её сервис, и обёртка над комнатами должны быть одним экземпляром.
