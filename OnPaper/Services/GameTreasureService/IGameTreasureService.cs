@@ -17,7 +17,7 @@ public interface IGameTreasureService
     Task<ResultModel<bool>> Move(string? userId, string? gameId, int direction, IHubCallerClients clients);
     Task<ResultModel<bool>> TurnTimeout(string? userId, string? gameId, IHubCallerClients clients);
 
-    Task PlayerLeft(string? userId, IHubCallerClients clients);
+    Task PlayerLeft(string? userId, string? connectionId, IHubCallerClients clients);
     Task<ResultModel<bool>> CheckOpponentLeft(string? userId, string? gameId, IHubCallerClients clients);
     Task<ResultModel<bool>> LeaveGame(string? userId, string? gameId, IHubCallerClients clients);
 }

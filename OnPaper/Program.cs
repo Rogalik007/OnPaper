@@ -149,6 +149,11 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider.GetRequiredService<ILobbyService>().ClearQueue();
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -100,8 +100,11 @@ public class GameHub(
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        await gameTreasureService.PlayerLeft(Context.UserIdentifier, Clients);
+        // Сначала снимаем с поиска: если в этот момент игрока уже сматчили, отмена дождётся
+        // создания комнаты, и PlayerLeft ниже увидит её и предупредит противника.
+        await lobbyService.GameCancelSearch(Context.UserIdentifier);
         await raceService.CancelSearch(Context.UserIdentifier);
+        await gameTreasureService.PlayerLeft(Context.UserIdentifier, Context.ConnectionId, Clients);
         await base.OnDisconnectedAsync(exception);
     }
 

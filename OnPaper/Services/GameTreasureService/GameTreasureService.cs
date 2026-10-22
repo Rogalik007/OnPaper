@@ -123,7 +123,7 @@ public class GameTreasureService(
 
     // Соединение оборвалось: предупреждаем оставшегося игрока и даём ушедшему время вернуться.
     // Перезагрузка страницы тоже сюда попадает, поэтому партия заканчивается не сразу.
-    public async Task PlayerLeft(string? userId, IHubCallerClients clients)
+    public async Task PlayerLeft(string? userId, string? connectionId, IHubCallerClients clients)
     {
         if (string.IsNullOrEmpty(userId))
         {
@@ -135,6 +135,14 @@ public class GameTreasureService(
         var opponent = room?.GetOpponent(userId);
 
         if (room == null || opponent == null)
+        {
+            return;
+        }
+
+        // Закрылось не то соединение, через которое игрок сейчас в партии: старая вкладка
+        // или соединение, обрыв которого сервер заметил уже после переподключения клиента.
+        // Игрок на месте, засчитывать уход нельзя.
+        if (room.GetPlayer(userId)?.ConnectionId != connectionId)
         {
             return;
         }
@@ -348,7 +356,7 @@ public class GameTreasureService(
         // Ход, пришедший после дедлайна, не считается - вместо него ход просто переходит противнику
         if (state.IsTurnExpired)
         {
-            await PassTurn(room, opponent, state, clients);
+            await PassTurn(room, userId, opponent.UserId, state, clients);
             return ResultModel.Fail<bool>("Time is up", ErrorType.BadRequest);
         }
 
@@ -449,22 +457,24 @@ public class GameTreasureService(
             return ResultModel.Ok(false);
         }
 
-        var late = room.GetOpponent(state.Turn);
+        var next = room.GetOpponent(state.Turn);
 
-        if (late == null)
+        if (next == null)
         {
             return ResultModel.Ok(false);
         }
 
-        await PassTurn(room, late, state, clients);
+        await PassTurn(room, state.Turn, next.UserId, state, clients);
 
         return ResultModel.Ok(true);
     }
 
-    private async Task PassTurn(GameRoomModel room, GamePlayerModel to, GameStateModel state,
+    // Просроченный ход сгорает, но очередь дальше идёт как после обычного хода: если противник
+    // должен пропустить ходы из-за мин, они списываются и здесь, а не откладываются на потом.
+    private async Task PassTurn(GameRoomModel room, string from, string to, GameStateModel state,
         IHubCallerClients clients)
     {
-        state.Turn = to.UserId;
+        state.Turn = state.GetNextTurn(from, to);
         state.TurnDeadline = GetTurnDeadline();
 
         await gameRoomService.SaveState(room.GameId, state);
@@ -612,6 +622,13 @@ public class GameTreasureService(
         if (maze.SuperMine < 0 || maze.SuperMine >= maze.CellsCount)
         {
             return ResultModel.Fail<bool>("Supermine is out of the maze", ErrorType.BadRequest);
+        }
+
+        // Игрок начинает на стартовой клетке, а не входит в неё: клад там нельзя найти, а мина не сработает
+        if (maze.Treasure == START_CELL || maze.SuperMine == START_CELL || maze.Mines.Contains(START_CELL))
+        {
+            return ResultModel.Fail<bool>(
+                "Treasure and mines must not be placed on the start cell", ErrorType.BadRequest);
         }
 
         if (maze.Mines.Contains(maze.SuperMine.Value))

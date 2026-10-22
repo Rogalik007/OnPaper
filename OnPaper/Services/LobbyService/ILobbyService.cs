@@ -7,4 +7,5 @@ public interface ILobbyService
 {
     Task GameSearch(string? userId, string? connectionId, string? nickname, IHubCallerClients clients);
     Task GameCancelSearch(string? userId);
+    Task ClearQueue();
 }
