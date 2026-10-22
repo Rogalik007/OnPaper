@@ -142,7 +142,37 @@ public class GameHub(
 
     public async Task RaceMove(string gameId, int direction)
     {
-        var result = await raceService.Move(Context.UserIdentifier, gameId, direction, Clients);
+        var result = await raceService.Move(Context.UserIdentifier, gameId, direction);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+    }
+
+    public async Task RaceShoot(string gameId, int direction)
+    {
+        var result = await raceService.Shoot(Context.UserIdentifier, gameId, direction);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+    }
+
+    public async Task RaceTurnTimeout(string gameId)
+    {
+        var result = await raceService.TurnTimeout(Context.UserIdentifier, gameId);
+
+        if (!result.IsSuccess)
+        {
+            throw new HubException(result.Error!.Message);
+        }
+    }
+
+    public async Task LeaveRace(string gameId)
+    {
+        var result = await raceService.Leave(Context.UserIdentifier, gameId);
 
         if (!result.IsSuccess)
         {
