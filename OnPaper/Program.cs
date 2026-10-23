@@ -32,11 +32,22 @@ AuthOptions.ISSUER = Environment.GetEnvironmentVariable("JWT_ISSUER")!;
 AuthOptions.AUDIENCE = Environment.GetEnvironmentVariable("JWT_AUDIENCE")!;
 AuthOptions.KEY = Environment.GetEnvironmentVariable("JWT_KEY")!;
 
-// Явный биндинг на HTTPS (а не launchSettings.json), чтобы порт и сертификат были одинаковыми
-// независимо от того, как запущен процесс - dotnet run, systemd, докер и т.д. Сертификат
-// самоподписанный, поэтому в браузере при первом заходе нужно будет подтвердить исключение.
+// Явный биндинг (а не launchSettings.json), чтобы порт был одинаковым независимо от того,
+// как запущен процесс - dotnet run, systemd, докер и т.д.
+// За обратным прокси (BEHIND_PROXY=true) HTTPS с настоящим сертификатом держит прокси, а бэкенд
+// слушает обычный HTTP только на localhost - снаружи он недоступен.
+// Без прокси - HTTPS на всех интерфейсах с самоподписанным сертификатом, в браузере при первом
+// заходе нужно будет подтвердить исключение.
+var behindProxy = Environment.GetEnvironmentVariable("BEHIND_PROXY") == "true";
+
 builder.WebHost.ConfigureKestrel(options =>
 {
+    if (behindProxy)
+    {
+        options.ListenLocalhost(5244);
+        return;
+    }
+
     options.ListenAnyIP(5244, listenOptions =>
         listenOptions.UseHttps(
             Path.Combine(builder.Environment.ContentRootPath, "https", "devcert.pfx"),
@@ -94,7 +105,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("https://localhost:8080", "https://185.21.11.60:8080")
+        policy.WithOrigins("https://localhost:8080", "https://185.21.11.60:8080", "https://321930.fornex.cloud", "https://185-21-11-60.sslip.io")
             .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();
